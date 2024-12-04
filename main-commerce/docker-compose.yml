@@ -1,0 +1,116 @@
+services:
+  redis:
+    image: redis:6.2
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - mired
+
+  db:
+    image: postgres:14
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - mired
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d main_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ms-catalogo:
+    build: ../ms-catalogo
+    image: ms-catalogo:1.0.0
+    container_name: ms-catalogo_v1
+    ports:
+      - "5001:5000"
+    environment:
+      - FLASK_ENV=${FLASK_ENV}
+      - SQLALCHEMY_DATABASE_URI=${SQLALCHEMY_DATABASE_URI}
+      - REDIS_HOST=${REDIS_HOST}
+    networks:
+      - mired
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ms-compras:
+    build: ../ms-compras
+    image: ms-compras:1.0.0
+    container_name: ms-compras_v1
+    ports:
+      - "5002:5000"
+    environment:
+      - FLASK_ENV=${FLASK_ENV}
+      - SQLALCHEMY_DATABASE_URI=${SQLALCHEMY_DATABASE_URI}
+    networks:
+      - mired
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ms-pagos:
+    build: ../ms-pagos
+    image: ms-pagos:1.0.0
+    container_name: ms-pagos_v1
+    ports:
+      - "5003:5000"
+    environment:
+      - FLASK_ENV=${FLASK_ENV}
+      - SQLALCHEMY_DATABASE_URI=${SQLALCHEMY_DATABASE_URI}
+    networks:
+      - mired
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ms-inventarios:
+    build: ../ms-inventarios
+    image: ms-inventarios:1.0.0
+    container_name: ms-inventario_v1
+    ports:
+      - "5004:5000"
+    environment:
+      - FLASK_ENV=${FLASK_ENV}
+      - SQLALCHEMY_DATABASE_URI=${SQLALCHEMY_DATABASE_URI}
+      - REDIS_HOST=${REDIS_HOST}
+    networks:
+      - mired
+    depends_on:
+      db:
+        condition: service_healthy
+
+  main-commerce:
+    build: ../main-commerce
+    image: main-commerce:1.0.0
+    container_name: main-commerce_v1
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=${FLASK_ENV}
+      - SQLALCHEMY_DATABASE_URI=${SQLALCHEMY_DATABASE_URI}
+      - REDIS_HOST=${REDIS_HOST}
+    networks:
+      - mired
+    depends_on:
+      - ms-catalogo
+      - ms-compras
+      - ms-pagos
+      - ms-inventarios
+      - redis
+
+volumes:
+  db_data:
+    driver: local
+
+networks:
+  mired:
+    driver: bridge
